@@ -21,6 +21,14 @@ type Workout struct {
 
 type Workouts []Workout
 
+// WorkoutType classifies body-weight-tagged exercises as home and all others as gym.
+func (workout Workout) WorkoutType() string {
+	if contains(workout.Equipments, "body weight") {
+		return "home"
+	}
+	return "gym"
+}
+
 //go:embed workoutsData.json
 var workoutsJSON []byte
 

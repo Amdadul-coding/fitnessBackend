@@ -13,10 +13,13 @@ import (
 )
 
 type workoutRequest struct {
-	BodyParts string `json:"bodyParts"`
+	BodyParts   string `json:"bodyParts"`
+	WorkoutType string `json:"workoutType"`
 }
 
 type workoutResponse struct {
+	WorkoutType   string   `json:"workoutType"`
+	Name          string   `json:"name"`
 	BodyParts     []string `json:"bodyParts"`
 	GIFURL        string   `json:"gifUrl"`
 	TargetMuscles []string `json:"targetMuscles"`
@@ -93,11 +96,22 @@ func handleWorkouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workoutType := strings.ToLower(strings.TrimSpace(request.WorkoutType))
+	if workoutType != "" && workoutType != "home" && workoutType != "gym" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "workoutType must be home or gym, or omitted for both"})
+		return
+	}
+
 	selected := getter()
 	response := make([]workoutResponse, 0, len(selected))
 	for _, workout := range selected {
+		if workoutType != "" && workout.WorkoutType() != workoutType {
+			continue
+		}
 		response = append(response, workoutResponse{
-			BodyParts: workout.BodyParts, GIFURL: workout.GIFURL,
+			WorkoutType: workout.WorkoutType(),
+			Name:        workout.Name,
+			BodyParts:   workout.BodyParts, GIFURL: workout.GIFURL,
 			TargetMuscles: workout.TargetMuscles, Instructions: workout.Instructions,
 		})
 	}

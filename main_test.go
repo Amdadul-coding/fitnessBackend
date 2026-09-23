@@ -27,11 +27,13 @@ func TestChestWorkoutsResponse(t *testing.T) {
 		t.Fatalf("got %d workouts, want %d", len(rows), len(expected))
 	}
 	for i, row := range rows {
-		if len(row) != 4 {
-			t.Fatalf("expected exactly four response fields, got %v", row)
+		if len(row) != 6 {
+			t.Fatalf("expected exactly six response fields, got %v", row)
 		}
 		for key, value := range map[string]interface{}{
-			"bodyParts": expected[i].BodyParts, "gifUrl": expected[i].GIFURL,
+			"workoutType": expected[i].WorkoutType(),
+			"name":        expected[i].Name,
+			"bodyParts":   expected[i].BodyParts, "gifUrl": expected[i].GIFURL,
 			"targetMuscles": expected[i].TargetMuscles, "instructions": expected[i].Instructions,
 		} {
 			encoded, err := json.Marshal(value)
@@ -75,6 +77,7 @@ func TestWorkoutRequestValidation(t *testing.T) {
 	for _, body := range []string{
 		``, `{`, `{}`, `null`, `{"bodyParts":null}`, `{"bodyParts":"unknown"}`,
 		`{"bodyParts":["chest"]}`, `{"bodyParts":"chest","extra":true}`,
+		`{"bodyParts":"chest","workoutType":"outdoors"}`, `{"bodyParts":"chest","workoutType":123}`,
 		`{"bodyParts":"upper arms"}`, `{"bodyParts":"lower arms"}`, `{"bodyParts":"lower legs"}`,
 		`{"bodyParts":"chest"} {}`, `{"bodyParts":"chest"} trailing`,
 		`{"bodyParts":"` + strings.Repeat("x", 4096) + `"}`,
@@ -99,7 +102,9 @@ func TestEveryDatasetTargetMuscle(t *testing.T) {
 	for _, workout := range workouts.AllWorkouts {
 		for _, muscle := range workout.TargetMuscles {
 			expected[muscle] = append(expected[muscle], workoutResponse{
-				BodyParts: workout.BodyParts, GIFURL: workout.GIFURL,
+				WorkoutType: workout.WorkoutType(),
+				Name:        workout.Name,
+				BodyParts:   workout.BodyParts, GIFURL: workout.GIFURL,
 				TargetMuscles: workout.TargetMuscles, Instructions: workout.Instructions,
 			})
 		}
@@ -133,4 +138,45 @@ func minLength(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func TestWorkoutTypeFiltering(t *testing.T) {
+	for _, muscle := range supportedTargetMuscles() {
+		for _, kind := range []string{"home", "gym"} {
+			t.Run(muscle+"/"+kind, func(t *testing.T) {
+				want := make([]workoutResponse, 0)
+				for _, workout := range targetMuscleGetters[muscle]() {
+					isHome := false
+					for _, equipment := range workout.Equipments {
+						if equipment == "body weight" {
+							isHome = true
+						}
+					}
+					if isHome != (kind == "home") {
+						continue
+					}
+					want = append(want, workoutResponse{
+						Name: workout.Name, WorkoutType: kind, BodyParts: workout.BodyParts,
+						GIFURL: workout.GIFURL, TargetMuscles: workout.TargetMuscles, Instructions: workout.Instructions,
+					})
+				}
+				payload, err := json.Marshal(map[string]string{"bodyParts": muscle, "workoutType": " " + strings.ToUpper(kind) + " "})
+				if err != nil {
+					t.Fatal(err)
+				}
+				w := httptest.NewRecorder()
+				newHandler().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/workouts", strings.NewReader(string(payload))))
+				if w.Code != http.StatusOK {
+					t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+				}
+				var got []workoutResponse
+				if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("incorrect %s exercises for %s: got %d, want %d", kind, muscle, len(got), len(want))
+				}
+			})
+		}
+	}
 }
