@@ -69,6 +69,15 @@ func newHandler() http.Handler {
 }
 
 func handleWorkouts(w http.ResponseWriter, r *http.Request) {
+	// This endpoint exposes a public, read-only exercise catalog without credentials.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST /workouts"})
