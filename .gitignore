@@ -1,0 +1,10 @@
+# Local Go executables and test output
+/fitnessBackend
+*.test
+coverage.out
+
+# Local secrets and macOS metadata
+.env
+.env.*
+!.env.example
+.DS_Store
